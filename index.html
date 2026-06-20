@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCAP Analysis Tool — Law Enforcement</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #f5f5f0;
+  --surface:  #ffffff;
+  --surface2: #f0ede6;
+  --border:   #d3d1c7;
+  --border2:  #b4b2a9;
+  --text:     #1a1a18;
+  --text2:    #5f5e5a;
+  --text3:    #888780;
+  --red:      #E74C3C; --red-bg: #fcebeb; --red-t: #a32d2d;
+  --amber:    #F39C12; --amber-bg: #faeeda; --amber-t: #854f0b;
+  --green:    #27ae60; --green-bg: #eaf3de; --green-t: #3b6d11;
+  --blue:     #3498DB; --blue-bg: #e6f1fb;  --blue-t: #185fa5;
+  --radius:   10px;
+  --radius-lg:14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:      #1a1a18; --surface: #242422; --surface2: #2c2c2a;
+    --border:  #3d3d3a; --border2: #5f5e5a;
+    --text:    #e8e6df; --text2: #b4b2a9;   --text3: #888780;
+    --red-bg:  #3a1212; --amber-bg: #2e1f06; --green-bg: #0d2008; --blue-bg: #0b1e35;
+  }
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg); color: var(--text);
+  min-height: 100vh; padding: 1.5rem 1rem;
+  font-size: 14px; line-height: 1.5;
+}
+
+.app { max-width: 900px; margin: 0 auto; }
+
+/* ── Header ── */
+.header { display: flex; align-items: center; gap: 12px; margin-bottom: 1.5rem; }
+.badge {
+  background: var(--red-bg); color: var(--red-t);
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 20px; text-transform: uppercase; letter-spacing: .06em;
+}
+h1 { font-size: 20px; font-weight: 600; }
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #27ae60; margin-left: auto;
+  box-shadow: 0 0 0 3px #eaf3de;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+#status-text { font-size: 12px; color: var(--text3); }
+
+/* ── Upload ── */
+.card {
+  background: var(--surface); border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg); padding: 1.5rem; margin-bottom: 1rem;
+}
+.upload-zone {
+  border: 1.5px dashed var(--border2); border-radius: var(--radius-lg);
+  padding: 3rem 2rem; text-align: center; cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.upload-zone:hover, .upload-zone.dragover {
+  background: var(--surface2); border-color: var(--blue);
+}
+.upload-zone .icon { font-size: 40px; color: var(--text3); display: block; margin-bottom: .75rem; }
+.upload-zone h2 { font-size: 16px; font-weight: 500; margin-bottom: .4rem; }
+.upload-zone p { font-size: 13px; color: var(--text2); margin-bottom: 1rem; }
+.divider { font-size: 12px; color: var(--text3); margin: .75rem 0; }
+
+/* ── Buttons ── */
+button, .btn {
+  font-family: inherit; font-size: 13px; cursor: pointer;
+  border-radius: var(--radius); padding: 7px 16px;
+  border: 0.5px solid var(--border2);
+  background: var(--surface); color: var(--text);
+  transition: background .15s, transform .1s;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+button:hover { background: var(--surface2); }
+button:active { transform: scale(0.97); }
+button.primary { background: var(--text); color: var(--surface); border-color: var(--text); }
+button.primary:hover { opacity: .88; }
+button.danger { background: var(--red-bg); color: var(--red-t); border-color: var(--red-t); }
+
+/* ── Tabs ── */
+.tabs {
+  display: flex; gap: 2px; border-bottom: 0.5px solid var(--border);
+  margin-bottom: 1.25rem; overflow-x: auto;
+}
+.tab {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  padding: 9px 14px; font-size: 13px; color: var(--text2);
+  cursor: pointer; margin-bottom: -0.5px; white-space: nowrap;
+  border-radius: 0; transition: color .15s;
+}
+.tab.active { color: var(--text); border-bottom-color: var(--text); font-weight: 600; }
+.tab:hover:not(.active) { color: var(--text); background: var(--surface2); }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── Metrics ── */
+.metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 10px; margin-bottom: 1.25rem; }
+.metric { background: var(--surface2); border-radius: var(--radius); padding: .9rem 1rem; }
+.metric .lbl { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing:.04em; margin-bottom:3px; }
+.metric .val { font-size: 24px; font-weight: 600; }
+.metric .sub { font-size: 11px; color: var(--text3); margin-top:2px; }
+
+/* ── Section titles ── */
+.stitle {
+  font-size: 12px; font-weight: 600; color: var(--text2);
+  text-transform: uppercase; letter-spacing:.05em;
+  margin-bottom:.6rem; display:flex; align-items:center; gap:6px;
+}
+
+/* ── Tables ── */
+.table-wrap { overflow-x: auto; margin-bottom: 1.25rem; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align:left; font-size:11px; font-weight:600; color:var(--text2);
+  padding:7px 10px; border-bottom:0.5px solid var(--border);
+  text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;
+}
+td { padding:8px 10px; border-bottom:0.5px solid var(--border); vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background: var(--surface2); }
+.mono { font-family: ui-monospace, "SF Mono", monospace; font-size:12px; }
+
+/* ── Pills ── */
+.pill {
+  display:inline-block; font-size:11px; font-weight:600;
+  padding:2px 8px; border-radius:20px; white-space:nowrap;
+}
+.pill.high   { background:var(--red-bg);   color:var(--red-t); }
+.pill.med    { background:var(--amber-bg); color:var(--amber-t); }
+.pill.low    { background:var(--green-bg); color:var(--green-t); }
+.pill.info   { background:var(--blue-bg);  color:var(--blue-t); }
+.pill.scan, .pill.c2, .pill.exfil, .pill.tunnel { background:var(--red-bg); color:var(--red-t); }
+.pill.suspicious { background:var(--amber-bg); color:var(--amber-t); }
+.pill.clean  { background:var(--green-bg); color:var(--green-t); }
+
+/* ── Protocol bar ── */
+.proto-bar-wrap { margin-bottom:1.25rem; }
+.proto-bar { display:flex; gap:3px; height:36px; border-radius:8px; overflow:hidden; }
+.proto-seg { display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; color:#fff; transition:flex .5s; }
+.proto-legend { display:flex; flex-wrap:wrap; gap:10px; margin-top:.5rem; }
+.proto-legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--text2); }
+.proto-swatch { width:10px; height:10px; border-radius:2px; }
+
+/* ── Network map ── */
+#netmap {
+  width:100%; border:0.5px solid var(--border);
+  border-radius:var(--radius-lg); background:var(--surface2);
+}
+
+/* ── Report ── */
+.report-card { background:var(--surface); border:0.5px solid var(--border); border-radius:var(--radius-lg); padding:1.25rem; margin-bottom:1rem; }
+.report-card h3 { font-size:15px; font-weight:600; margin-bottom:.75rem; display:flex; align-items:center; gap:8px; }
+.finding { display:flex; gap:10px; align-items:flex-start; margin-bottom:.6rem; font-size:13px; line-height:1.6; }
+.finding i { margin-top:2px; font-size:15px; flex-shrink:0; }
+.finding.danger i { color:var(--red-t); }
+.finding.warn   i { color:var(--amber-t); }
+.finding.ok     i { color:var(--green-t); }
+
+/* ── Spinner ── */
+.spinner-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:4rem; gap:1rem; }
+.spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toolbar ── */
+.toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:1.25rem; }
+.toolbar-right { margin-left:auto; display:flex; gap:8px; }
+
+/* ── Print ── */
+@media print {
+  body { background:#fff; padding:0; }
+  .tabs, button, .toolbar, .upload-zone { display:none!important; }
+  .panel { display:block!important; }
+  .card { border:none; padding:0; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <span class="badge"><i class="ti ti-shield-lock"></i> Law Enforcement</span>
+    <h1>PCAP Analysis Tool</h1>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
+      <div class="status-dot" id="status-dot" style="background:#888;box-shadow:none"></div>
+      <span id="status-text">Ready</span>
+    </div>
+  </div>
+
+  <!-- Upload card -->
+  <div class="card" id="upload-card">
+    <div
+      class="upload-zone"
+      id="drop-zone"
+      onclick="document.getElementById('file-input').click()"
+      ondragover="onDragOver(event)"
+      ondragleave="onDragLeave(event)"
+      ondrop="onDrop(event)"
+    >
+      <i class="ti ti-file-search icon"></i>
+      <h2>Upload PCAP for forensic analysis</h2>
+      <p>Drag & drop a .pcap / .pcapng / .cap file, or click to browse</p>
+      <button class="primary" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
+        <i class="ti ti-upload"></i> Choose file
+      </button>
+      <input type="file" id="file-input" accept=".pcap,.pcapng,.cap" style="display:none" onchange="uploadFile(this.files[0])">
+      <div class="divider">— or —</div>
+      <button onclick="event.stopPropagation(); loadDemo()"><i class="ti ti-player-play"></i> Load demo capture</button>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div id="results" style="display:none">
+    <div class="toolbar">
+      <span style="font-size:13px;color:var(--text2)" id="file-label"></span>
+      <div class="toolbar-right">
+        <button onclick="resetApp()"><i class="ti ti-refresh"></i> New file</button>
+        <button onclick="window.print()"><i class="ti ti-printer"></i> Print report</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding-top:.75rem">
+      <div class="tabs">
+        <button class="tab active" onclick="tab('overview')"><i class="ti ti-chart-bar"></i> Overview</button>
+        <button class="tab" onclick="tab('traffic')"><i class="ti ti-arrows-exchange"></i> Traffic</button>
+        <button class="tab" onclick="tab('artifacts')"><i class="ti ti-database"></i> Artifacts</button>
+        <button class="tab" onclick="tab('netmap')"><i class="ti ti-topology-star-3"></i> Network map</button>
+        <button class="tab" onclick="tab('report')"><i class="ti ti-report"></i> Report</button>
+      </div>
+
+      <!-- OVERVIEW -->
+      <div id="tab-overview" class="panel active">
+        <div class="metrics" id="metrics"></div>
+        <div class="stitle"><i class="ti ti-alert-triangle"></i> Alerts</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Severity</th><th>Type</th><th>Source IP</th><th>Details</th><th>Time</th></tr></thead>
+            <tbody id="alerts-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TRAFFIC -->
+      <div id="tab-traffic" class="panel">
+        <div class="stitle"><i class="ti ti-arrows-exchange"></i> Top connections</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>#</th><th>Source</th><th>Destination</th><th>Protocol</th><th>Packets</th><th>Bytes</th><th>Flag</th></tr></thead>
+            <tbody id="traffic-body"></tbody>
+          </table>
+        </div>
+        <div class="stitle"><i class="ti ti-chart-donut"></i> Protocol distribution</div>
+        <div class="proto-bar-wrap">
+          <div class="proto-bar" id="proto-bar"></div>
+          <div class="proto-legend" id="proto-legend"></div>
+        </div>
+      </div>
+
+      <!-- ARTIFACTS -->
+      <div id="tab-artifacts" class="panel">
+        <div class="stitle"><i class="ti ti-world"></i> Domains / URLs</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Domain / URL</th><th>Type</th><th>Category</th><th>Risk</th></tr></thead>
+            <tbody id="url-body"></tbody>
+          </table>
+        </div>
+        <div class="stitle"><i class="ti ti-key"></i> Credentials & sensitive data</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Protocol</th><th>Field</th><th>Value</th><th>Source IP</th></tr></thead>
+            <tbody id="cred-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- NETWORK MAP -->
+      <div id="tab-netmap" class="panel">
+        <div class="stitle" style="margin-bottom:.75rem"><i class="ti ti-topology-star-3"></i> Connection graph</div>
+        <svg id="netmap" viewBox="0 0 680 340" width="100%"></svg>
+        <div style="display:flex;gap:16px;margin-top:.75rem;font-size:12px;color:var(--text2)">
+          <span><svg width="10" height="10"><circle cx="5" cy="5" r="5" fill="#E74C3C"/></svg> Suspect host</span>
+          <span><svg width="10" height="10"><circle cx="5" cy="5" r="5" fill="#F39C12"/></svg> External / C2</span>
+          <span><svg width="10" height="10"><circle cx="5" cy="5" r="5" fill="#3498DB"/></svg> Internal</span>
+        </div>
+      </div>
+
+      <!-- REPORT -->
+      <div id="tab-report" class="panel">
+        <div class="report-card">
+          <h3><i class="ti ti-clipboard-list"></i> Executive summary</h3>
+          <p id="exec-summary" style="font-size:13px;color:var(--text2);line-height:1.7"></p>
+        </div>
+        <div class="report-card">
+          <h3><i class="ti ti-search"></i> Key findings</h3>
+          <div id="findings-list"></div>
+        </div>
+        <div class="report-card">
+          <h3><i class="ti ti-file-text"></i> Indicators of compromise (IOCs)</h3>
+          <div class="table-wrap" style="margin-bottom:0">
+            <table>
+              <thead><tr><th>Indicator type</th><th>Value</th><th>Confidence</th></tr></thead>
+              <tbody id="ioc-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div><!-- .card -->
+  </div><!-- #results -->
+
+  <!-- Loading -->
+  <div id="loading" style="display:none" class="card">
+    <div class="spinner-wrap">
+      <div class="spinner"></div>
+      <p id="loading-text" style="color:var(--text2);font-size:14px">Analysing capture file…</p>
+    </div>
+  </div>
+
+</div><!-- .app -->
+
+<script>
+const API = "http://localhost:5000";   // ← change if backend runs elsewhere
+const COLORS = ["#4A90D9","#2ECC71","#F39C12","#E74C3C","#9B59B6","#1ABC9C"];
+
+// ── State ────────────────────────────────────────────────────────────────────
+let DATA = null;
+let mapDrawn = false;
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+function tab(name) {
+  document.querySelectorAll('.tab').forEach((b,i) => {
+    const names = ['overview','traffic','artifacts','netmap','report'];
+    b.classList.toggle('active', names[i] === name);
+  });
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  if (name === 'netmap' && DATA && !mapDrawn) drawMap(DATA);
+}
+
+// ── Drag & drop ───────────────────────────────────────────────────────────────
+function onDragOver(e) { e.preventDefault(); e.currentTarget.classList.add('dragover'); }
+function onDragLeave(e) { e.currentTarget.classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault(); e.currentTarget.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+}
+
+// ── API calls ─────────────────────────────────────────────────────────────────
+async function uploadFile(file) {
+  setStatus('Uploading…','#F39C12');
+  showLoading('Uploading and parsing capture file…');
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch(`${API}/api/analyse`, { method:'POST', body: fd });
+    if (!r.ok) throw new Error(await r.text());
+    render(await r.json(), file.name);
+  } catch(e) {
+    alert('Analysis failed: ' + e.message);
+    hideLoading();
+    setStatus('Error','#E74C3C');
+  }
+}
+
+async function loadDemo() {
+  setStatus('Loading demo…','#F39C12');
+  showLoading('Loading demo capture data…');
+  try {
+    const r = await fetch(`${API}/api/demo`);
+    render(await r.json(), 'demo_capture.pcap');
+  } catch(e) {
+    // Offline fallback — use hardcoded demo
+    render(OFFLINE_DEMO, 'demo_capture.pcap (offline)');
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render(data, filename) {
+  DATA = data; mapDrawn = false;
+  hideLoading();
+  document.getElementById('upload-card').style.display = 'none';
+  document.getElementById('results').style.display = 'block';
+  document.getElementById('file-label').textContent = '📄 ' + (data.filename || filename);
+  setStatus('Analysis complete','#27ae60');
+
+  // Metrics
+  document.getElementById('metrics').innerHTML = (data.metrics||[]).map(m =>
+    `<div class="metric"><div class="lbl">${m.label}</div><div class="val">${m.value}</div><div class="sub">${m.sub}</div></div>`
+  ).join('');
+
+  // Alerts
+  document.getElementById('alerts-body').innerHTML = (data.alerts||[]).map(a =>
+    `<tr>
+      <td><span class="pill ${a.sev}">${a.sev}</span></td>
+      <td>${a.type}</td>
+      <td class="mono">${a.src}</td>
+      <td style="color:var(--text2)">${a.detail}</td>
+      <td class="mono" style="color:var(--text3)">${a.time||'—'}</td>
+    </tr>`
+  ).join('') || '<tr><td colspan="5" style="color:var(--text3);text-align:center">No alerts detected</td></tr>';
+
+  // Traffic
+  const flagCls = {scan:'scan',c2:'c2',exfil:'exfil',tunnel:'tunnel',suspicious:'suspicious',clean:'clean'};
+  document.getElementById('traffic-body').innerHTML = (data.traffic||[]).map((t,i) =>
+    `<tr>
+      <td style="color:var(--text3)">${i+1}</td>
+      <td class="mono">${t.src}</td>
+      <td class="mono">${t.dst}</td>
+      <td><span class="pill info">${t.proto}</span></td>
+      <td>${typeof t.pkts === 'number' ? t.pkts.toLocaleString() : t.pkts}</td>
+      <td>${t.bytes}</td>
+      <td><span class="pill ${flagCls[t.flag]||'low'}">${t.flag||'—'}</span></td>
+    </tr>`
+  ).join('');
+
+  // Protocol bar
+  const protos = data.protocols || [];
+  const bar = document.getElementById('proto-bar');
+  const leg = document.getElementById('proto-legend');
+  bar.innerHTML = protos.map((p,i) =>
+    `<div class="proto-seg" style="flex:${p.pct};background:${COLORS[i%COLORS.length]}" title="${p.name} ${p.pct}%">
+      ${p.pct > 7 ? p.name : ''}
+    </div>`
+  ).join('');
+  leg.innerHTML = protos.map((p,i) =>
+    `<div class="proto-legend-item">
+      <div class="proto-swatch" style="background:${COLORS[i%COLORS.length]}"></div>
+      ${p.name} ${p.pct}%
+    </div>`
+  ).join('');
+
+  // URLs
+  document.getElementById('url-body').innerHTML = (data.urls||[]).map(u =>
+    `<tr>
+      <td class="mono">${u.url}</td>
+      <td style="color:var(--text2)">${u.type}</td>
+      <td>${u.cat}</td>
+      <td><span class="pill ${u.risk}">${u.risk}</span></td>
+    </tr>`
+  ).join('') || '<tr><td colspan="4" style="color:var(--text3);text-align:center">None extracted</td></tr>';
+
+  // Credentials
+  document.getElementById('cred-body').innerHTML = (data.credentials||[]).map(c =>
+    `<tr>
+      <td><span class="pill high">${c.proto}</span></td>
+      <td style="color:var(--text2)">${c.field}</td>
+      <td class="mono" style="color:var(--red-t)">${c.value}</td>
+      <td class="mono">${c.src}</td>
+    </tr>`
+  ).join('') || '<tr><td colspan="4" style="color:var(--text3);text-align:center">No credentials found</td></tr>';
+
+  // Report
+  document.getElementById('exec-summary').textContent = data.summary || '';
+  document.getElementById('findings-list').innerHTML = (data.findings||[]).map(f => {
+    const icon = f.type==='danger'?'alert-circle':f.type==='warn'?'alert-triangle':'circle-check';
+    return `<div class="finding ${f.type}"><i class="ti ti-${icon}"></i><span>${f.text}</span></div>`;
+  }).join('');
+  document.getElementById('ioc-body').innerHTML = (data.iocs||[]).map(i =>
+    `<tr>
+      <td style="color:var(--text2)">${i.type}</td>
+      <td class="mono">${i.value}</td>
+      <td><span class="pill ${i.conf==='High'?'high':'med'}">${i.conf}</span></td>
+    </tr>`
+  ).join('');
+}
+
+// ── Network map ───────────────────────────────────────────────────────────────
+function drawMap(data) {
+  mapDrawn = true;
+  const svg = document.getElementById('netmap');
+  const nodes = data.nodes || [];
+  const edges = data.edges || [];
+  const nodeMap = {};
+  nodes.forEach(n => nodeMap[n.id||n.label] = n);
+
+  const typeColor = { suspect:'#E74C3C', external:'#F39C12', internal:'#3498DB' };
+
+  let html = `<defs>
+    <marker id="ma" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#888" stroke-width="1.5" stroke-linecap="round"/>
+    </marker>
+  </defs>`;
+
+  edges.forEach(e => {
+    const a = nodeMap[e.from], b = nodeMap[e.to];
+    if (!a || !b) return;
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    html += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#888" stroke-width="1.2" marker-end="url(#ma)" opacity=".6"/>`;
+    if (e.label) html += `<text x="${mx}" y="${my-7}" text-anchor="middle" font-size="10" fill="#888" font-family="system-ui">${e.label}</text>`;
+  });
+
+  nodes.forEach(n => {
+    const col = typeColor[n.type] || '#888';
+    const lines = (n.label||n.id||'').split('\n');
+    html += `<g style="cursor:pointer" onclick="alert('Host: ${(n.label||'').replace(/'/g,'`')}\\nType: ${n.type||'unknown'}')">
+      <circle cx="${n.x}" cy="${n.y}" r="24" fill="${col}" opacity=".88" stroke="${col}" stroke-width="1.5"/>
+      ${lines.map((l,i)=>`<text x="${n.x}" y="${n.y+(lines.length===1?5:i===0?-3:11)}" text-anchor="middle" font-size="10" font-weight="600" font-family="system-ui" fill="#fff">${l.length>13?l.slice(0,12)+'…':l}</text>`).join('')}
+    </g>`;
+  });
+
+  svg.innerHTML = html;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setStatus(msg, color) {
+  const dot = document.getElementById('status-dot');
+  dot.style.background = color;
+  dot.style.boxShadow = color === '#27ae60' ? '0 0 0 3px #eaf3de' : 'none';
+  document.getElementById('status-text').textContent = msg;
+}
+function showLoading(msg) {
+  document.getElementById('loading-text').textContent = msg;
+  document.getElementById('loading').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+}
+function hideLoading() { document.getElementById('loading').style.display = 'none'; }
+function resetApp() {
+  DATA = null; mapDrawn = false;
+  document.getElementById('upload-card').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('file-input').value = '';
+  setStatus('Ready','#888');
+}
+
+// ── Offline demo fallback ─────────────────────────────────────────────────────
+const OFFLINE_DEMO = {
+  filename:'demo_capture.pcap',
+  metrics:[
+    {label:'Total packets',value:'18,432',sub:'Captured'},
+    {label:'Duration',value:'4m 12s',sub:'HH:MM:SS'},
+    {label:'Unique IPs',value:'47',sub:'Hosts seen'},
+    {label:'Alerts',value:'9',sub:'Suspicious events'},
+    {label:'Bytes total',value:'28.4 MB',sub:'Data volume'},
+  ],
+  alerts:[
+    {sev:'high',type:'Port scan detected',src:'192.168.1.105',detail:'3,400 ports probed in 18s',time:'00:01:04'},
+    {sev:'high',type:'DNS tunneling',src:'10.0.0.88',detail:'Encoded data in TXT records → malware.cc',time:'00:02:31'},
+    {sev:'high',type:'Cleartext credentials',src:'192.168.1.105',detail:'FTP login captured',time:'00:00:48'},
+    {sev:'med',type:'C2 beacon pattern',src:'10.0.0.88',detail:'30s interval to 185.220.101.12',time:'00:02:00'},
+    {sev:'med',type:'Large data exfil',src:'10.0.0.55',detail:'42 MB HTTPS upload',time:'00:03:10'},
+    {sev:'med',type:'Tor circuit',src:'10.0.0.88',detail:'Known Tor guard nodes',time:'00:01:55'},
+    {sev:'low',type:'Self-signed TLS cert',src:'185.220.101.12',detail:'CN=localhost, expired 2021',time:'00:01:58'},
+    {sev:'low',type:'Unusual port 4444',src:'192.168.1.200',detail:'Metasploit default listener',time:'00:03:44'},
+    {sev:'low',type:'ICMP flood',src:'192.168.1.105',detail:'1,200 echo requests in 3s',time:'00:00:55'},
+  ],
+  traffic:[
+    {src:'192.168.1.105',dst:'192.168.1.1',proto:'TCP',pkts:3842,bytes:'4.1 MB',flag:'scan'},
+    {src:'10.0.0.88',dst:'185.220.101.12',proto:'HTTPS',pkts:1204,bytes:'2.8 MB',flag:'c2'},
+    {src:'10.0.0.55',dst:'104.21.44.82',proto:'HTTPS',pkts:890,bytes:'42.0 MB',flag:'exfil'},
+    {src:'10.0.0.88',dst:'8.8.8.8',proto:'DNS',pkts:612,bytes:'320 KB',flag:'tunnel'},
+    {src:'192.168.1.200',dst:'192.168.1.105',proto:'TCP',pkts:204,bytes:'88 KB',flag:'suspicious'},
+  ],
+  protocols:[
+    {name:'TCP',pct:52},{name:'HTTPS',pct:28},
+    {name:'DNS',pct:10},{name:'HTTP',pct:6},{name:'ICMP',pct:4},
+  ],
+  urls:[
+    {url:'malware.cc',type:'Domain',cat:'Malware C2',risk:'high'},
+    {url:'185.220.101.12',type:'IP',cat:'Known Tor exit node',risk:'high'},
+    {url:'104.21.44.82',type:'IP',cat:'Exfiltration target',risk:'med'},
+    {url:'updates.microsoft.com',type:'Domain',cat:'Legitimate software',risk:'low'},
+  ],
+  credentials:[
+    {proto:'FTP',field:'Username',value:'admin',src:'192.168.1.105'},
+    {proto:'FTP',field:'Password',value:'p@ssw0rd123',src:'192.168.1.105'},
+  ],
+  nodes:[
+    {id:'105',label:'192.168.1.105',x:140,y:170,type:'suspect'},
+    {id:'88', label:'10.0.0.88',   x:310,y:100,type:'suspect'},
+    {id:'55', label:'10.0.0.55',   x:420,y:230,type:'suspect'},
+    {id:'200',label:'192.168.1.200',x:200,y:280,type:'suspect'},
+    {id:'c2', label:'185.220.101.12\nC2 Server',x:540,y:80, type:'external'},
+    {id:'dns',label:'8.8.8.8\nDNS',x:560,y:200,type:'external'},
+    {id:'gw', label:'192.168.1.1\nGateway',x:60,y:80, type:'internal'},
+  ],
+  edges:[
+    {from:'105',to:'gw', label:'Port scan'},
+    {from:'88', to:'c2', label:'C2 beacon'},
+    {from:'88', to:'dns',label:'DNS tunnel'},
+    {from:'55', to:'c2', label:'42 MB upload'},
+    {from:'200',to:'105',label:''},
+  ],
+  summary:'Demo capture (18,432 packets, 4m 12s): coordinated malicious activity across 3 internal hosts. C2 beaconing, DNS tunneling, FTP credential leakage, and large data exfiltration detected.',
+  findings:[
+    {type:'danger',text:'Host 10.0.0.88 — C2 beacon every 30s to 185.220.101.12 (Tor exit node). DNS tunneling for covert exfiltration.'},
+    {type:'danger',text:'Cleartext FTP credentials captured from 192.168.1.105: admin / p@ssw0rd123.'},
+    {type:'danger',text:'42 MB HTTPS upload from 10.0.0.55 to unclassified external host — consistent with data exfiltration.'},
+    {type:'warn', text:'Port scan from 192.168.1.105: 3,400 ports in 18s (Nmap pattern).'},
+    {type:'ok',   text:'43 remaining hosts show normal traffic patterns — no lateral movement detected.'},
+  ],
+  iocs:[
+    {type:'IPv4 — C2 server',  value:'185.220.101.12',conf:'High'},
+    {type:'IPv4 — Exfil target',value:'104.21.44.82', conf:'High'},
+    {type:'Domain — Malware C2',value:'malware.cc',   conf:'High'},
+    {type:'Credential — FTP',  value:'admin:p@ssw0rd123',conf:'High'},
+    {type:'Port — Suspicious', value:'TCP/4444',       conf:'Medium'},
+    {type:'TLS fingerprint',   value:'a0e9f5d64349fb13',conf:'Medium'},
+  ],
+};
+</script>
+</body>
+</html>
